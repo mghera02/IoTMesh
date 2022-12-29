@@ -1,3 +1,4 @@
+// THIS IS NODE 2741409788
 #include "painlessMesh.h"
 #include <cppQueue.h>
 #include <Wire.h>
@@ -21,15 +22,23 @@ int potPin = A0;
 int B2Pin = 0;
 int B1Pin = 2;
 int ledPin = 16;
-int sensorValue = 0;
+int potSensorValue = 0;
+int lastPotSensorValue = 0;
 
 unsigned long startTime = millis();
+unsigned long timeSinceOn = millis();
+unsigned long timeSinceMsgReceived = millis();
+unsigned long forceRebootTime = millis();
+unsigned long timeSinceUpdate = millis();
 
+long lastUpdateTime = millis();
 String msg;
 String receivedMsg;
 String receivedSubMsg;
 String frontOfStack = "";
-cppQueue  sending_queue(sizeof(String), 20);
+int displayContent = -1;
+bool connectedStatus = false;
+cppQueue  sending_queue(sizeof(String), 40);
 
 Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
@@ -41,16 +50,13 @@ Task taskSendMessage( TASK_SECOND * .1 , TASK_FOREVER, &sendMessage );
 
 void sendMessage() {
   sending_queue.peek(&frontOfStack);
-  if(frontOfStack != String(sensorValue)) {
-    if(sending_queue.isFull()) {
-      Serial.printf("queue is full. popping\n");
-      sending_queue.pop(&msg); 
-    }
-    msg = String(sensorValue);
-    sending_queue.push(&msg);
+  if(sending_queue.isFull()) {
+    Serial.printf("queue is full. popping\n");
+    sending_queue.pop(&msg); 
   }
-  //String msg = String(sensorValue);
-  //msg += mesh.getNodeId();
+  msg = String(potSensorValue);
+  sending_queue.push(&msg);
+  
   if(!(sending_queue.isEmpty())) {
     sending_queue.peek(&msg);
     Serial.printf("sending %s\n", msg);
@@ -63,9 +69,13 @@ void sendMessage() {
 void receivedCallback( uint32_t from, String &msg ) {
   Serial.printf("Received from %u msg=%s\n", from, msg.c_str());
   receivedMsg = msg.c_str();
+  
   if(receivedMsg.indexOf(':') > -1) {
     receivedSubMsg = receivedMsg.substring(receivedMsg.indexOf(':') + 1);
+    displayContent = atoi(receivedSubMsg.c_str());
   }
+
+  timeSinceMsgReceived = millis();
   Serial.printf("substring %s\n", receivedSubMsg);
   if(frontOfStack == receivedSubMsg) {
     Serial.printf("Matches top of stack. popping\n");
@@ -85,6 +95,63 @@ void nodeTimeAdjustedCallback(int32_t offset) {
     Serial.printf("Adjusted time %u. Offset = %d\n", mesh.getNodeTime(),offset);
 }
 
+void updateDisplayContent(int content, bool connectedStatus, unsigned long forceRebootTime) {
+  display.setTextSize(1.4);
+  display.setCursor(30, 20);
+  display.print("Power: ");
+  content /= 10;
+  display.print(content);
+  display.println("%");
+
+  if(connectedStatus) {
+    display.setCursor(30, 30);
+    display.println("Connected");
+  } else {
+    display.setCursor(20, 30);
+    display.println("Not connected");
+    display.setCursor(20, 40);
+    display.print("Reboot in ");
+    display.print(forceRebootTime);
+    display.println(" sec");
+  }
+}
+
+void initializeDisplay() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(40, 55);
+  display.print("Page ");
+  display.println(currentPage);
+  display.setCursor(0, 0);
+  if(currentPage != 1) {
+    display.print("B1 to go Node ");
+    display.print(currentPage - 1); 
+    display.println(" <- ");
+  }
+  if(currentPage < numPages) {
+    display.print("B2 to go Node ");
+    display.print(currentPage); 
+    display.println(" -> ");
+  }
+}
+
+void setUpMesh() {
+  //mesh.setDebugMsgTypes( ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE ); // all types on
+  mesh.setDebugMsgTypes( ERROR | STARTUP );  // set before init() so that you can see startup messages
+  //mesh.setDebugMsgTypes( CONNECTION | SYNC );
+
+  mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
+  mesh.onReceive(&receivedCallback);
+  mesh.onNewConnection(&newConnectionCallback);
+  mesh.onChangedConnections(&changedConnectionCallback);
+  mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
+  mesh.setRoot();
+
+  userScheduler.addTask( taskSendMessage );
+  taskSendMessage.enable();
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -95,17 +162,7 @@ void setup() {
   delay(1000);
   display.clearDisplay();
 
-//mesh.setDebugMsgTypes( ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE ); // all types on
-  mesh.setDebugMsgTypes( ERROR | STARTUP );  // set before init() so that you can see startup messages
-
-  mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
-  mesh.onReceive(&receivedCallback);
-  mesh.onNewConnection(&newConnectionCallback);
-  mesh.onChangedConnections(&changedConnectionCallback);
-  mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
-
-  userScheduler.addTask( taskSendMessage );
-  taskSendMessage.enable();
+  setUpMesh();
 
   pinMode(B1Pin, INPUT);
   pinMode(B2Pin, INPUT);
@@ -113,10 +170,38 @@ void setup() {
 }
 
 void loop() {
-  // it will run the user scheduler as well
-  mesh.update();
-  sensorValue = analogRead(potPin);
-  analogWrite(ledPin, sensorValue/10);
+  initializeDisplay();
+
+  if(millis() - timeSinceUpdate > 50) {
+    mesh.update();
+    timeSinceUpdate = millis(); 
+  }
+  
+  if(millis() - timeSinceMsgReceived < 1500) {
+    //Serial.printf("Connected to child\n");
+    connectedStatus = true;
+    timeSinceOn = millis(); 
+  } else {
+    //Serial.printf("Not connected to child\n");
+    if(millis() - timeSinceOn > 30000) {
+      mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
+    }
+    forceRebootTime = 30 - ((millis() - timeSinceOn)/1000);
+    if(forceRebootTime < 28) {
+      connectedStatus = false; 
+    }
+  }
+  
+  potSensorValue = analogRead(potPin);
+  if(potSensorValue > lastPotSensorValue + 2 || potSensorValue < lastPotSensorValue - 2) {
+    lastPotSensorValue = potSensorValue;
+  } else {
+    potSensorValue = lastPotSensorValue;
+  }
+  analogWrite(ledPin, potSensorValue/10);
+  if(potSensorValue < 10) {
+    potSensorValue = -1;
+  }
 
   int buttonState2 = digitalRead(B2Pin);
   if(millis() - startTime > 500 && !buttonState2) {
@@ -134,26 +219,6 @@ void loop() {
     startTime = millis();
   }
 
-  Serial.printf("here %d\n", currentPage);
-  
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(40, 55);
-  display.print("Page");
-  display.println(currentPage);
-  display.setCursor(0, 0);
-  if(currentPage != 1) {
-    display.print("B1 to go Node ");
-    display.print(currentPage - 1); 
-    display.println(" <- ");
-  }
-  if(currentPage < numPages) {
-    display.print("B2 to go Node ");
-    display.print(currentPage); 
-    display.println(" -> ");
-  }
+  updateDisplayContent(displayContent, connectedStatus, forceRebootTime);
   display.display();
-  
-  delay(10);
 }
