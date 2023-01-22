@@ -1,82 +1,107 @@
 // THIS IS NODE 2741409788
-#include "painlessMesh.h"
-#include <cppQueue.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 
-#define   MESH_PREFIX     "whateverYouLike"
-#define   MESH_PASSWORD   "somethingSneaky"
-#define   MESH_PORT       5555
+// LIBRARIES
+#include "painlessMesh.h"      // Mesh WiFi
+#include <cppQueue.h>          // Queue
+#include <Wire.h>              // Communicating with I2C for OLED Screen
+#include <Adafruit_GFX.h>      // For OLED Screen
+#include <Adafruit_SSD1306.h>  // For OLED Screen
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+// CONSTANTS
+#define   MESH_PREFIX     "IoTHub"     // Mesh WiFI name
+#define   MESH_PASSWORD   "IOAIHTHG"   // Mesh password
+#define   MESH_PORT       5555         // Mesh port
+#define   SCREEN_WIDTH 128             // OLED display width, in pixels
+#define   SCREEN_HEIGHT 64             // OLED display height, in pixels
 
-// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+// GLOBAL VARIABLES
+  // PINS
+  int potPin = A0;
+  int B2Pin = 0;
+  int B1Pin = 2;
+  int ledPin = 16;
 
-int currentPage = 1;
-int numPages = 3;
+  // PIN INPUT VALUES
+  int potSensorValue = 0;
+  int lastPotSensorValue = 0;
 
-int potPin = A0;
-int B2Pin = 0;
-int B1Pin = 2;
-int ledPin = 16;
-int potSensorValue = 0;
-int lastPotSensorValue = 0;
+  // TIMES
+  unsigned long startTime = millis();
+  unsigned long timeSinceOn = millis();
+  unsigned long timeSinceMsgReceived = millis();
+  unsigned long forceRebootTime = millis();
+  unsigned long timeSinceUpdate = millis();
 
-unsigned long startTime = millis();
-unsigned long timeSinceOn = millis();
-unsigned long timeSinceMsgReceived = millis();
-unsigned long forceRebootTime = millis();
-unsigned long timeSinceUpdate = millis();
+  // OLED DISPLAY
+  int currentPage = 1;
+  int numPages = 3;
+  int displayContent = -1;
 
-long lastUpdateTime = millis();
-String msg;
-String receivedMsg;
-String receivedSubMsg;
-String frontOfStack = "";
-int displayContent = -1;
-bool connectedStatus = false;
-cppQueue  sending_queue(sizeof(String), 40);
+  // WiFi COMMUNICATION MESSAGE
+  String msg;
+  String receivedMsg;
+  String receivedSubMsg;
+  String frontOfStack = "";
+  bool connectedStatus = false;
 
+// INITIALIZING OBJECTS
+cppQueue  sending_queue(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
 Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
-
-// User stub
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 void sendMessage() ; // Prototype so PlatformIO doesn't complain
-
-Task taskSendMessage( TASK_SECOND * .1 , TASK_FOREVER, &sendMessage );
+Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
 
 void sendMessage() {
-  sending_queue.peek(&frontOfStack);
+  // Popping Queue when hits size limit
   if(sending_queue.isFull()) {
     Serial.printf("queue is full. popping\n");
     sending_queue.pop(&msg); 
   }
-  msg = String(potSensorValue);
-  sending_queue.push(&msg);
-  
-  if(!(sending_queue.isEmpty())) {
-    sending_queue.peek(&msg);
-    Serial.printf("sending %s\n", msg);
+
+  sending_queue.peek(&frontOfStack);
+  Serial.printf("frontOfStack %s. receivedMsg %s\n", frontOfStack, receivedMsg);
+
+  // Send message if 
+    // 1. received message is not the same as the front of the stack 
+    // 2. neither front of stack or message is 0
+    // 3. stack isnt empty
+  // else
+    // send 0 and pop only if message is not the same as front of the stack
+  if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
+    if(!(sending_queue.isEmpty())) {
+      sending_queue.peek(&frontOfStack);
+      Serial.printf("sending %s\n", frontOfStack);
+      mesh.sendBroadcast( frontOfStack );
+      taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 2 )); 
+    } else {
+      msg = "-2";
+      mesh.sendBroadcast( msg );
+    }
+  } else {
+    msg = "-2";
     mesh.sendBroadcast( msg );
-    taskSendMessage.setInterval( random( TASK_SECOND * 0, TASK_SECOND * .1 )); 
+    if(!(sending_queue.isEmpty())) {
+      sending_queue.pop(&msg);
+    }  
   }
 }
 
-// Needed for painless library
 void receivedCallback( uint32_t from, String &msg ) {
   Serial.printf("Received from %u msg=%s\n", from, msg.c_str());
   receivedMsg = msg.c_str();
-  
-  if(receivedMsg.indexOf(':') > -1) {
+
+  // Incoming message will be in the form of: "Callback:xxxxxx". Only want xxxxxx
+  if(receivedMsg.indexOf(':') >= -1) {
     receivedSubMsg = receivedMsg.substring(receivedMsg.indexOf(':') + 1);
     displayContent = atoi(receivedSubMsg.c_str());
+    receivedMsg = receivedSubMsg;
   }
 
+  // Update message received counter and pop off stack
   timeSinceMsgReceived = millis();
   Serial.printf("substring %s\n", receivedSubMsg);
+  sending_queue.peek(&frontOfStack);
   if(frontOfStack == receivedSubMsg) {
     Serial.printf("Matches top of stack. popping\n");
     sending_queue.pop(&msg); 
@@ -95,6 +120,7 @@ void nodeTimeAdjustedCallback(int32_t offset) {
     Serial.printf("Adjusted time %u. Offset = %d\n", mesh.getNodeTime(),offset);
 }
 
+// Updating OLED Display
 void updateDisplayContent(int content, bool connectedStatus, unsigned long forceRebootTime) {
   display.setTextSize(1.4);
   display.setCursor(30, 20);
@@ -116,6 +142,7 @@ void updateDisplayContent(int content, bool connectedStatus, unsigned long force
   }
 }
 
+// Initializing OLED Display
 void initializeDisplay() {
   display.clearDisplay();
   display.setTextSize(1);
@@ -155,6 +182,7 @@ void setUpMesh() {
 void setup() {
   Serial.begin(115200);
 
+  // For OLED Display Setup
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
     for(;;);
@@ -170,39 +198,37 @@ void setup() {
 }
 
 void loop() {
-  initializeDisplay();
-
+  // Updating Mesg
   if(millis() - timeSinceUpdate > 50) {
     mesh.update();
     timeSinceUpdate = millis(); 
   }
-  
-  if(millis() - timeSinceMsgReceived < 1500) {
-    //Serial.printf("Connected to child\n");
-    connectedStatus = true;
-    timeSinceOn = millis(); 
-  } else {
-    //Serial.printf("Not connected to child\n");
-    if(millis() - timeSinceOn > 30000) {
-      mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
-    }
-    forceRebootTime = 30 - ((millis() - timeSinceOn)/1000);
-    if(forceRebootTime < 28) {
-      connectedStatus = false; 
-    }
-  }
-  
+
+  // Potentiometer
   potSensorValue = analogRead(potPin);
-  if(potSensorValue > lastPotSensorValue + 2 || potSensorValue < lastPotSensorValue - 2) {
+  if(potSensorValue > lastPotSensorValue + 30 || potSensorValue < lastPotSensorValue - 30) {
+    Serial.printf("potSensorValue %d. LastPotSensorValue %d. Changing. \n", potSensorValue, lastPotSensorValue);
     lastPotSensorValue = potSensorValue;
   } else {
+    //Serial.printf("potSensorValue %d. LastPotSensorValue %d. Staying the same. \n", potSensorValue, lastPotSensorValue);
     potSensorValue = lastPotSensorValue;
   }
-  analogWrite(ledPin, potSensorValue/10);
-  if(potSensorValue < 10) {
+  if(potSensorValue < 100) {
     potSensorValue = -1;
   }
+  //Serial.printf("potSensorValue %d \n", potSensorValue);
+  analogWrite(ledPin, potSensorValue/10);
 
+  // Push to stack
+  msg = String(potSensorValue);
+  sending_queue.peek(&frontOfStack);
+  printf("frontofstack %s, msg %s\n", frontOfStack, msg);
+  if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !(sending_queue.isFull())) {
+    printf("adding %s to stack\n", msg);
+    sending_queue.push(&msg);
+  }
+
+  // Page Changing for Display
   int buttonState2 = digitalRead(B2Pin);
   if(millis() - startTime > 500 && !buttonState2) {
     if(currentPage < numPages) {
@@ -210,7 +236,6 @@ void loop() {
     }
     startTime = millis();
   }
-
   int buttonState1 = digitalRead(B1Pin);
   if(millis() - startTime > 500 && !buttonState1) {
     if(currentPage > 1) {
@@ -219,6 +244,8 @@ void loop() {
     startTime = millis();
   }
 
+  // Updating Display
+  initializeDisplay();
   updateDisplayContent(displayContent, connectedStatus, forceRebootTime);
   display.display();
 }
