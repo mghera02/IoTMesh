@@ -39,6 +39,9 @@ void setUpMesh() {
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
 
+  // Tells nodes that there is a root and to connect to it
+  mesh.setContainsRoot();
+
   userScheduler.addTask( taskSendMessage );
   taskSendMessage.enable();
 }
@@ -51,13 +54,15 @@ void setup() {
   setUpMesh();
 }
 
+// Send message to root
 void sendMessage() {
   String msg = "Callback:" + receivedMsg;
-  mesh.sendBroadcast( msg );
+  uint32_t rootId = getRootId(mesh.asNodeTree());
+  mesh.sendSingle(rootId, msg);
   taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 ));
 }
 
-// Needed for painless library
+// Recieve message
 void receivedCallback( uint32_t from, String &msg ) {
   Serial.printf("startHere: Received from %u msg=%s\n", from, msg.c_str());
   receivedMsg = msg.c_str();
@@ -69,6 +74,15 @@ void receivedCallback( uint32_t from, String &msg ) {
       lastValue = atoi(msg.c_str());
     }
   }
+}
+
+uint32_t getRootId(painlessmesh::protocol::NodeTree nodeTree) {
+  if (nodeTree.root) return nodeTree.nodeId;
+  for (auto&& s : nodeTree.subs) {
+    auto id = getRootId(s);
+    if (id != 0) return id;
+  }
+  return 0;
 }
 
 void newConnectionCallback(uint32_t nodeId) {

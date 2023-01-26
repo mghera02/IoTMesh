@@ -73,10 +73,8 @@ void sendMessage() {
     if(!(sending_queue.isEmpty())) {
       sending_queue.peek(&frontOfStack);
       Serial.printf("sending %s\n", frontOfStack);
-      //mesh.sendBroadcast( frontOfStack );
       SimpleList<uint32_t>::iterator node = connectedNodes.begin();
       while (node != connectedNodes.end()) {
-        //Serial.printf(" %u", *node);
         mesh.sendSingle(*node, frontOfStack);
         node++;
       }
@@ -180,7 +178,12 @@ void setUpMesh() {
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
+
+  // Makes this node the root
   mesh.setRoot();
+  
+  // Tells nodes that there is a root and to connect to it
+  mesh.setContainsRoot();
 
   userScheduler.addTask( taskSendMessage );
   taskSendMessage.enable();
@@ -213,8 +216,6 @@ void loop() {
 
   // Get list of nodes in mesh
   connectedNodes = mesh.getNodeList();
-  // Send each message to each node in list (no more broadcasting)
-  // change each individual node to no longer broadcast and instead send to root only
   /*Serial.printf("\nConnection list (%d):", connectedNodes.size());
   SimpleList<uint32_t>::iterator node = connectedNodes.begin();
   while (node != connectedNodes.end()) {
