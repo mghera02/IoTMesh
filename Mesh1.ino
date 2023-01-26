@@ -38,6 +38,7 @@
   int displayContent = -1;
 
   // WiFi COMMUNICATION MESSAGE
+  SimpleList<uint32_t> connectedNodes;
   String msg;
   String receivedMsg;
   String receivedSubMsg;
@@ -67,13 +68,19 @@ void sendMessage() {
     // 2. neither front of stack or message is 0
     // 3. stack isnt empty
   // else
-    // send 0 and pop only if message is not the same as front of the stack
+    // send -2 and pop if queue isnt empty
   if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
     if(!(sending_queue.isEmpty())) {
       sending_queue.peek(&frontOfStack);
       Serial.printf("sending %s\n", frontOfStack);
-      mesh.sendBroadcast( frontOfStack );
-      taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 2 )); 
+      //mesh.sendBroadcast( frontOfStack );
+      SimpleList<uint32_t>::iterator node = connectedNodes.begin();
+      while (node != connectedNodes.end()) {
+        //Serial.printf(" %u", *node);
+        mesh.sendSingle(*node, frontOfStack);
+        node++;
+      }
+      taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
     } else {
       msg = "-2";
       mesh.sendBroadcast( msg );
@@ -198,11 +205,22 @@ void setup() {
 }
 
 void loop() {
-  // Updating Mesg
+  // Updating Mesh
   if(millis() - timeSinceUpdate > 50) {
     mesh.update();
     timeSinceUpdate = millis(); 
   }
+
+  // Get list of nodes in mesh
+  connectedNodes = mesh.getNodeList();
+  // Send each message to each node in list (no more broadcasting)
+  // change each individual node to no longer broadcast and instead send to root only
+  /*Serial.printf("\nConnection list (%d):", connectedNodes.size());
+  SimpleList<uint32_t>::iterator node = connectedNodes.begin();
+  while (node != connectedNodes.end()) {
+    //Serial.printf(" %u", *node);
+    node++;
+  }*/
 
   // Potentiometer
   potSensorValue = analogRead(potPin);
@@ -222,7 +240,7 @@ void loop() {
   // Push to stack
   msg = String(potSensorValue);
   sending_queue.peek(&frontOfStack);
-  printf("frontofstack %s, msg %s\n", frontOfStack, msg);
+  //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
   if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !(sending_queue.isFull())) {
     printf("adding %s to stack\n", msg);
     sending_queue.push(&msg);
