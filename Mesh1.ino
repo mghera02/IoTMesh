@@ -1,3 +1,6 @@
+// Make list for queue
+// Fill list
+
 // THIS IS NODE 2741409788
 
 // LIBRARIES
@@ -44,9 +47,13 @@
   String receivedSubMsg;
   String frontOfStack = "";
   bool connectedStatus = false;
+  const int numNodesAllowed = 2;
 
 // INITIALIZING OBJECTS
-cppQueue  sending_queue(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
+cppQueue  sending_queue1(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
+cppQueue  sending_queue2(sizeof(String), 20);
+cppQueue queueList[numNodesAllowed] = {sending_queue1, sending_queue2}; // Makes list of queues for each node (has max connection of 2 nodes for now)
+
 Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -54,41 +61,43 @@ void sendMessage() ; // Prototype so PlatformIO doesn't complain
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
 
 void sendMessage() {
-  // Popping Queue when hits size limit
-  if(sending_queue.isFull()) {
-    Serial.printf("queue is full. popping\n");
-    sending_queue.pop(&msg); 
-  }
-
-  sending_queue.peek(&frontOfStack);
-  Serial.printf("frontOfStack %s. receivedMsg %s\n", frontOfStack, receivedMsg);
-
-  // Send message if 
-    // 1. received message is not the same as the front of the stack 
-    // 2. neither front of stack or message is 0
-    // 3. stack isnt empty
-  // else
-    // send -2 and pop if queue isnt empty
-  if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
-    if(!(sending_queue.isEmpty())) {
-      sending_queue.peek(&frontOfStack);
-      Serial.printf("sending %s\n", frontOfStack);
-      SimpleList<uint32_t>::iterator node = connectedNodes.begin();
-      while (node != connectedNodes.end()) {
-        mesh.sendSingle(*node, frontOfStack);
-        node++;
+  for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
+    // Popping Queue when hits size limit
+    if((queueList[queueNum]).isFull()) {
+      Serial.printf("queue is full. popping\n");
+      (queueList[queueNum]).pop(&msg); 
+    }
+  
+    (queueList[queueNum]).peek(&frontOfStack);
+    Serial.printf("frontOfStack %s. receivedMsg %s\n", frontOfStack, receivedMsg);
+  
+    // Send message if 
+      // 1. received message is not the same as the front of the stack 
+      // 2. neither front of stack or message is 0
+      // 3. stack isnt empty
+    // else
+      // send -2 and pop if queue isnt empty
+    if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
+      if(!((queueList[queueNum]).isEmpty())) {
+        (queueList[queueNum]).peek(&frontOfStack);
+        Serial.printf("sending %s\n", frontOfStack);
+        SimpleList<uint32_t>::iterator node = connectedNodes.begin();
+        while (node != connectedNodes.end()) {
+          mesh.sendSingle(*node, frontOfStack);
+          node++;
+        }
+        taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
+      } else {
+        msg = "-2";
+        mesh.sendBroadcast( msg );
       }
-      taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
     } else {
       msg = "-2";
       mesh.sendBroadcast( msg );
-    }
-  } else {
-    msg = "-2";
-    mesh.sendBroadcast( msg );
-    if(!(sending_queue.isEmpty())) {
-      sending_queue.pop(&msg);
-    }  
+      if(!((queueList[queueNum]).isEmpty())) {
+        (queueList[queueNum]).pop(&msg);
+      }  
+    } 
   }
 }
 
@@ -103,13 +112,15 @@ void receivedCallback( uint32_t from, String &msg ) {
     receivedMsg = receivedSubMsg;
   }
 
-  // Update message received counter and pop off stack
-  timeSinceMsgReceived = millis();
-  Serial.printf("substring %s\n", receivedSubMsg);
-  sending_queue.peek(&frontOfStack);
-  if(frontOfStack == receivedSubMsg) {
-    Serial.printf("Matches top of stack. popping\n");
-    sending_queue.pop(&msg); 
+  for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
+    // Update message received counter and pop off stack
+    timeSinceMsgReceived = millis();
+    Serial.printf("substring %s\n", receivedSubMsg);
+    (queueList[queueNum]).peek(&frontOfStack);
+    if(frontOfStack == receivedSubMsg) {
+      Serial.printf("Matches top of stack. popping\n");
+      (queueList[queueNum]).pop(&msg); 
+    }
   }
 }
 
@@ -240,11 +251,20 @@ void loop() {
 
   // Push to stack
   msg = String(potSensorValue);
-  sending_queue.peek(&frontOfStack);
-  //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-  if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !(sending_queue.isFull())) {
-    printf("adding %s to stack\n", msg);
-    sending_queue.push(&msg);
+  for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
+    // This is for testing purposes. Currently, If this block of code is run, the two nodes will change from 50 to 254. I believe this is because they are swapping places in connection list. This should be deleted once the bug is fixed.
+    // This is not a problem with the new, recent addition of the list of queues because both the nodes still work in unison if the same message is sent to both.
+    /*if(queueNum == 0) {
+      msg = "50";
+    } else {
+      msg = "254";
+    }*/
+    (queueList[queueNum]).peek(&frontOfStack);
+    //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
+    if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
+      printf("adding %s to stack\n", msg);
+      (queueList[queueNum]).push(&msg);
+    }
   }
 
   // Page Changing for Display
