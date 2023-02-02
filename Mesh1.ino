@@ -80,11 +80,15 @@ void sendMessage() {
     if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
       if(!((queueList[queueNum]).isEmpty())) {
         (queueList[queueNum]).peek(&frontOfStack);
-        Serial.printf("sending %s\n", frontOfStack);
         SimpleList<uint32_t>::iterator node = connectedNodes.begin();
+        int nodeNum = 0;
         while (node != connectedNodes.end()) {
-          mesh.sendSingle(*node, frontOfStack);
+          if(nodeNum == queueNum) {
+            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum);
+            mesh.sendSingle(*node, frontOfStack); 
+          }
           node++;
+          nodeNum++;
         }
         taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
       } else {
@@ -252,8 +256,7 @@ void loop() {
   // Push to stack
   msg = String(potSensorValue);
   for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
-    // This is for testing purposes. Currently, If this block of code is run, the two nodes will change from 50 to 254. I believe this is because they are swapping places in connection list. This should be deleted once the bug is fixed.
-    // This is not a problem with the new, recent addition of the list of queues because both the nodes still work in unison if the same message is sent to both.
+    // This is for testing purposes.
     /*if(queueNum == 0) {
       msg = "50";
     } else {
@@ -262,7 +265,7 @@ void loop() {
     (queueList[queueNum]).peek(&frontOfStack);
     //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
     if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
-      printf("adding %s to stack\n", msg);
+      printf("adding %s to stack %d\n", msg, queueNum);
       (queueList[queueNum]).push(&msg);
     }
   }
