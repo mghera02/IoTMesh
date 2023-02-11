@@ -35,8 +35,8 @@
   unsigned long timeSinceUpdate = millis();
 
   // OLED DISPLAY
-  int currentPage = 1;
-  int numPages = 3;
+  int currentPage = 0;
+  int numPages = 4;
   int displayContent = -1;
 
   // WiFi COMMUNICATION MESSAGE
@@ -145,13 +145,15 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 
 // Updating OLED Display
 void updateDisplayContent() {
-  display.setTextSize(1.4);
-  display.setCursor(30, 20);
-  display.print("Power: ");
-  const char* receivedMessagesConverted = receivedMessages[currentPage - 1].c_str();
-  String content = String(atoi(receivedMessagesConverted) * 100 / 1024);
-  display.print(content);
-  display.println("%");
+  if(currentPage > 0) {
+    display.setTextSize(1.4);
+    display.setCursor(30, 20);
+    display.print("Power: ");
+    const char* receivedMessagesConverted = receivedMessages[currentPage - 1].c_str();
+    String content = String(atoi(receivedMessagesConverted) * 100 / 1024);
+    display.print(content);
+    display.println("%"); 
+  }
 }
 
 // Initializing OLED Display
@@ -163,14 +165,20 @@ void initializeDisplay() {
   display.print("Page ");
   display.println(currentPage);
   display.setCursor(0, 0);
-  if(currentPage != 1) {
+  if(currentPage == 0) {
+    display.setCursor(20, 20);
+    display.println("Welcome to the");
+    display.setCursor(40, 30);
+    display.println("IoT Hub");
+    display.setCursor(0, 0);
+  } else {
     display.print("B1 to go Node ");
-    display.print(currentPage - 1); 
+    display.print(currentPage); 
     display.println(" <- ");
   }
   if(currentPage < numPages) {
     display.print("B2 to go Node ");
-    display.print(currentPage); 
+    display.print(currentPage + 1); 
     display.println(" -> ");
   }
 }
@@ -272,7 +280,7 @@ void loop() {
   }
   int buttonState1 = digitalRead(B1Pin);
   if(millis() - startTime > 500 && !buttonState1) {
-    if(currentPage > 1) {
+    if(currentPage > 0) {
       currentPage--;
     }
     startTime = millis();
