@@ -32,7 +32,6 @@
   unsigned long startTime = millis();
   unsigned long timeSinceOn = millis();
   unsigned long timeSinceMsgReceived = millis();
-  unsigned long forceRebootTime = millis();
   unsigned long timeSinceUpdate = millis();
 
   // OLED DISPLAY
@@ -46,13 +45,13 @@
   String receivedMsg;
   String receivedSubMsg;
   String frontOfStack = "";
-  bool connectedStatus = false;
   const int numNodesAllowed = 2;
 
 // INITIALIZING OBJECTS
 cppQueue  sending_queue1(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
 cppQueue  sending_queue2(sizeof(String), 20);
 cppQueue queueList[numNodesAllowed] = {sending_queue1, sending_queue2}; // Makes list of queues for each node (has max connection of 2 nodes for now)
+String receivedMessages[numNodesAllowed] = {"-1", "-1"};
 
 Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
@@ -96,6 +95,7 @@ void sendMessage() {
         mesh.sendBroadcast( msg );
       }
     } else {
+      // TODO: DONT BROADCAST HERE
       msg = "-2";
       mesh.sendBroadcast( msg );
       if(!((queueList[queueNum]).isEmpty())) {
@@ -123,6 +123,9 @@ void receivedCallback( uint32_t from, String &msg ) {
     (queueList[queueNum]).peek(&frontOfStack);
     if(frontOfStack == receivedSubMsg) {
       Serial.printf("Matches top of stack. popping\n");
+      if(frontOfStack != "-2") { // Keeping track of last message sent/received for each node
+        receivedMessages[queueNum] = frontOfStack;
+      }
       (queueList[queueNum]).pop(&msg); 
     }
   }
@@ -141,25 +144,14 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 }
 
 // Updating OLED Display
-void updateDisplayContent(int content, bool connectedStatus, unsigned long forceRebootTime) {
+void updateDisplayContent() {
   display.setTextSize(1.4);
   display.setCursor(30, 20);
   display.print("Power: ");
-  content /= 10;
+  const char* receivedMessagesConverted = receivedMessages[currentPage - 1].c_str();
+  String content = String(atoi(receivedMessagesConverted) * 100 / 1024);
   display.print(content);
   display.println("%");
-
-  if(connectedStatus) {
-    display.setCursor(30, 30);
-    display.println("Connected");
-  } else {
-    display.setCursor(20, 30);
-    display.println("Not connected");
-    display.setCursor(20, 40);
-    display.print("Reboot in ");
-    display.print(forceRebootTime);
-    display.println(" sec");
-  }
 }
 
 // Initializing OLED Display
@@ -264,7 +256,7 @@ void loop() {
     }*/
     (queueList[queueNum]).peek(&frontOfStack);
     //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-    if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
+    if(queueNum == currentPage - 1 && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
       printf("adding %s to stack %d\n", msg, queueNum);
       (queueList[queueNum]).push(&msg);
     }
@@ -288,6 +280,6 @@ void loop() {
 
   // Updating Display
   initializeDisplay();
-  updateDisplayContent(displayContent, connectedStatus, forceRebootTime);
+  updateDisplayContent();
   display.display();
 }
