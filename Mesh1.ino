@@ -2,10 +2,11 @@
 // Fill list
 
 // THIS IS NODE 2741409788
+/* blahhhhhhhh*/
 
 // LIBRARIES
-#include "painlessMesh.h"      // Mesh WiFi
-#include <cppQueue.h>          // Queue
+#include "painlessMesh.h"      // Mesh WiFi --> look into this library!! very important
+#include <cppQueue.h>          // Queue --> look into this library!! also very important
 #include <Wire.h>              // Communicating with I2C for OLED Screen
 #include <Adafruit_GFX.h>      // For OLED Screen
 #include <Adafruit_SSD1306.h>  // For OLED Screen
@@ -19,24 +20,26 @@
 
 // GLOBAL VARIABLES
   // PINS
-  int potPin = A0;
+  int potPin = A0; // potentiometer
   int B2Pin = 0;
   int B1Pin = 2;
   int ledPin = 16;
 
   // PIN INPUT VALUES
-  int potSensorValue = 0;
+  int potSensorValue = 0; //potentiometer
   int lastPotSensorValue = 0;
 
   // TIMES
+  //unsigned = variable must be positive, cannot be negative
   unsigned long startTime = millis();
   unsigned long timeSinceOn = millis();
   unsigned long timeSinceMsgReceived = millis();
+  unsigned long forceRebootTime = millis();
   unsigned long timeSinceUpdate = millis();
 
   // OLED DISPLAY
-  int currentPage = 0;
-  int numPages = 4;
+  int currentPage = 1;
+  int numPages = 3;
   int displayContent = -1;
 
   // WiFi COMMUNICATION MESSAGE
@@ -45,16 +48,17 @@
   String receivedMsg;
   String receivedSubMsg;
   String frontOfStack = "";
+  bool connectedStatus = false;
   const int numNodesAllowed = 2;
 
 // INITIALIZING OBJECTS
+// objects have their own functions that can be called for them
 cppQueue  sending_queue1(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
-cppQueue  sending_queue2(sizeof(String), 20);
+cppQueue  sending_queue2(sizeof(String), 20); // queue seems to be just kind of like a looped delay timer?
 cppQueue queueList[numNodesAllowed] = {sending_queue1, sending_queue2}; // Makes list of queues for each node (has max connection of 2 nodes for now)
-String receivedMessages[numNodesAllowed] = {"-1", "-1"};
 
 Scheduler userScheduler; // to control your personal task
-painlessMesh  mesh;
+painlessMesh  mesh; 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 void sendMessage() ; // Prototype so PlatformIO doesn't complain
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
@@ -64,11 +68,11 @@ void sendMessage() {
     // Popping Queue when hits size limit
     if((queueList[queueNum]).isFull()) {
       Serial.printf("queue is full. popping\n");
-      (queueList[queueNum]).pop(&msg); 
+      (queueList[queueNum]).pop(&msg); // equivalent to removing a value from the list
     }
   
-    (queueList[queueNum]).peek(&frontOfStack);
-    Serial.printf("frontOfStack %s. receivedMsg %s\n", frontOfStack, receivedMsg);
+    (queueList[queueNum]).peek(&frontOfStack); //reads the next character in the stream, doesn't extract
+    Serial.printf("frontOfStack %s. receivedMsg %s\n", frontOfStack, receivedMsg); //outputs the current value and message recieved
   
     // Send message if 
       // 1. received message is not the same as the front of the stack 
@@ -76,15 +80,17 @@ void sendMessage() {
       // 3. stack isnt empty
     // else
       // send -2 and pop if queue isnt empty
+      /*is there a reason for -2 specifically?*/
+      
     if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
       if(!((queueList[queueNum]).isEmpty())) {
         (queueList[queueNum]).peek(&frontOfStack);
-        SimpleList<uint32_t>::iterator node = connectedNodes.begin();
+        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); // the name after :: is a function in a called library, begin returns iterator pointing to first element in sequence
         int nodeNum = 0;
-        while (node != connectedNodes.end()) {
+        while (node != connectedNodes.end()) { // end returns iterator pointing past the end of a sequence
           if(nodeNum == queueNum) {
             Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum);
-            mesh.sendSingle(*node, frontOfStack); 
+            mesh.sendSingle(*node, frontOfStack); //sendSingle 
           }
           node++;
           nodeNum++;
@@ -95,7 +101,6 @@ void sendMessage() {
         mesh.sendBroadcast( msg );
       }
     } else {
-      // TODO: DONT BROADCAST HERE
       msg = "-2";
       mesh.sendBroadcast( msg );
       if(!((queueList[queueNum]).isEmpty())) {
@@ -123,9 +128,6 @@ void receivedCallback( uint32_t from, String &msg ) {
     (queueList[queueNum]).peek(&frontOfStack);
     if(frontOfStack == receivedSubMsg) {
       Serial.printf("Matches top of stack. popping\n");
-      if(frontOfStack != "-2") { // Keeping track of last message sent/received for each node
-        receivedMessages[queueNum] = frontOfStack;
-      }
       (queueList[queueNum]).pop(&msg); 
     }
   }
@@ -144,15 +146,24 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 }
 
 // Updating OLED Display
-void updateDisplayContent() {
-  if(currentPage > 0) {
-    display.setTextSize(1.4);
-    display.setCursor(30, 20);
-    display.print("Power: ");
-    const char* receivedMessagesConverted = receivedMessages[currentPage - 1].c_str();
-    String content = String(atoi(receivedMessagesConverted) * 100 / 1024);
-    display.print(content);
-    display.println("%"); 
+void updateDisplayContent(int content, bool connectedStatus, unsigned long forceRebootTime) {
+  display.setTextSize(1.4);
+  display.setCursor(30, 20);
+  display.print("Power: ");
+  content /= 10;
+  display.print(content);
+  display.println("%");
+
+  if(connectedStatus) {
+    display.setCursor(30, 30);
+    display.println("Connected");
+  } else {
+    display.setCursor(20, 30);
+    display.println("Not connected");
+    display.setCursor(20, 40);
+    display.print("Reboot in ");
+    display.print(forceRebootTime);
+    display.println(" sec");
   }
 }
 
@@ -165,20 +176,14 @@ void initializeDisplay() {
   display.print("Page ");
   display.println(currentPage);
   display.setCursor(0, 0);
-  if(currentPage == 0) {
-    display.setCursor(20, 20);
-    display.println("Welcome to the");
-    display.setCursor(40, 30);
-    display.println("IoT Hub");
-    display.setCursor(0, 0);
-  } else {
+  if(currentPage != 1) {
     display.print("B1 to go Node ");
-    display.print(currentPage); 
+    display.print(currentPage - 1); 
     display.println(" <- ");
   }
   if(currentPage < numPages) {
     display.print("B2 to go Node ");
-    display.print(currentPage + 1); 
+    display.print(currentPage); 
     display.println(" -> ");
   }
 }
@@ -264,7 +269,7 @@ void loop() {
     }*/
     (queueList[queueNum]).peek(&frontOfStack);
     //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-    if(queueNum == currentPage - 1 && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
+    if(frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
       printf("adding %s to stack %d\n", msg, queueNum);
       (queueList[queueNum]).push(&msg);
     }
@@ -280,7 +285,7 @@ void loop() {
   }
   int buttonState1 = digitalRead(B1Pin);
   if(millis() - startTime > 500 && !buttonState1) {
-    if(currentPage > 0) {
+    if(currentPage > 1) {
       currentPage--;
     }
     startTime = millis();
@@ -288,6 +293,6 @@ void loop() {
 
   // Updating Display
   initializeDisplay();
-  updateDisplayContent();
+  updateDisplayContent(displayContent, connectedStatus, forceRebootTime);
   display.display();
 }
