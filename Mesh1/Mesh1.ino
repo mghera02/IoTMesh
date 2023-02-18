@@ -2,7 +2,6 @@
 // Fill list
 
 // THIS IS NODE 2741409788
-/*testing the merge!!!!!*/
 
 // LIBRARIES
 #include "painlessMesh.h"      // Mesh WiFi
@@ -170,7 +169,7 @@ void initializeDisplay() {
     display.setCursor(20, 20);
     display.println("Welcome to the");
     display.setCursor(40, 30);
-    display.println("IoT Hub");
+    display.println("KTT remote");
     display.setCursor(0, 0);
   } else {
     display.print("B1 to go Node ");
@@ -232,13 +231,14 @@ void loop() {
 
   // Get list of nodes in mesh
   connectedNodes = mesh.getNodeList();
+  // This is for testing connections
   /*Serial.printf("\nConnection list (%d):", connectedNodes.size());
   SimpleList<uint32_t>::iterator node = connectedNodes.begin();
   while (node != connectedNodes.end()) {
     //Serial.printf(" %u", *node);
     node++;
   }*/
-
+  
   // Potentiometer
   potSensorValue = analogRead(potPin);
   if(potSensorValue > lastPotSensorValue + 30 || potSensorValue < lastPotSensorValue - 30) {
@@ -275,6 +275,7 @@ void loop() {
   int buttonState2 = digitalRead(B2Pin);
   if(millis() - startTime > 500 && !buttonState2) {
     if(currentPage < numPages) {
+      printf("page right\n");
       currentPage++;
     }
     startTime = millis();
@@ -282,6 +283,7 @@ void loop() {
   int buttonState1 = digitalRead(B1Pin);
   if(millis() - startTime > 500 && !buttonState1) {
     if(currentPage > 0) {
+      printf("page left\n");
       currentPage--;
     }
     startTime = millis();
