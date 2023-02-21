@@ -59,6 +59,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Declaration
 void sendMessage() ; // Prototype so PlatformIO doesn't complain
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
 
+
+/*
+ * this is where I (Bree) am updating the current mesh file, sendMessage
+ */
 void sendMessage() {
   for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
     // Popping Queue when hits size limit
@@ -95,13 +99,37 @@ void sendMessage() {
         mesh.sendBroadcast( msg );
       }
     } else {
+      /*
+       * this is where I (Bree) am updating the current mesh file, sendMessage else statement
+       * in the bottom else statement where it broadcasts, change it to no longer broadcasting
+       * instead send individual messages to each node, like it does in body of if statement
+       * things to note:
+       *      the whole function is already part of a for loop going through each node but I'll still need to make another loop
+       *      because they go through different parts of the nodes (queues vs. Node ID's)
+       * once finished, see task send interval (that part should be broadcast) after sending to individual nodes
+       * do that in the else statement after addition of each node individually
+       */
       // TODO: DONT BROADCAST HERE
-      msg = "-2";
+      //COMMENTED OUT OLD CODE BELOW!!
+      /*msg = "-2";
       mesh.sendBroadcast( msg );
-      if(!((queueList[queueNum]).isEmpty())) {
-        (queueList[queueNum]).pop(&msg);
-      }  
-    } 
+      */
+      
+      /*
+       * this for loop goes through all of the nodes, incrementing in each loop up to limit (currently = 2)
+       */
+      for(int nodeIDNum = 0; nodeIDNum < numNodesAllowed; nodeIDNum++) {
+        
+        msg = "-2";
+        mesh.sendSingle(*node, msg); 
+        /*
+         * do i use a pointer for *node here or do i use nodeIDNum? not sure if node was incremented before so i have to reset it???
+         */
+        taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
+        /*
+         * how do i broadcast the taskSendMessage? what do i need to add?
+         */
+      } 
   }
 }
 
