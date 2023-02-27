@@ -34,11 +34,6 @@
   unsigned long timeSinceMsgReceived = millis();
   unsigned long timeSinceUpdate = millis();
 
-  // OLED DISPLAY
-  int currentPage = 0;
-  int numPages = 4;
-  int displayContent = -1;
-
   // WiFi COMMUNICATION MESSAGE
   SimpleList<uint32_t> connectedNodes;
   String msg;
@@ -46,6 +41,11 @@
   String receivedSubMsg;
   String frontOfStack = "";
   const int numNodesAllowed = 2;
+
+  // OLED DISPLAY
+  int currentPage = 0;
+  int numPages = numNodesAllowed + 1;
+  int displayContent = -1;
 
 // INITIALIZING OBJECTS
 cppQueue  sending_queue1(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
@@ -145,12 +145,23 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 
 // Updating OLED Display
 void updateDisplayContent() {
-  if(currentPage > 0) {
+  if(currentPage >= 1) {
     display.setTextSize(1.4);
-    display.setCursor(30, 20);
+    if(currentPage == 1) { // broadcast page
+      display.setCursor(30, 35); 
+    } else { // every other node page
+      display.setCursor(30, 25); 
+    }
     display.print("Power: ");
-    const char* receivedMessagesConverted = receivedMessages[currentPage - 1].c_str();
-    String content = String(atoi(receivedMessagesConverted) * 100 / 1024);
+    const char* receivedMessagesConverted;
+    String content;
+    if(currentPage == 1) { // broadcast page
+      const char* receivedMessagesConverted = receivedMessages[0].c_str();
+      content = String(atoi(receivedMessagesConverted) * 100 / 1024);
+    } else { // every other node page
+      const char* receivedMessagesConverted = receivedMessages[currentPage - 2].c_str();
+      content = String(atoi(receivedMessagesConverted) * 100 / 1024);
+    }
     display.print(content);
     display.println("%"); 
   }
@@ -158,6 +169,7 @@ void updateDisplayContent() {
 
 // Initializing OLED Display
 void initializeDisplay() {
+  // Initializing the styling of the page
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -165,21 +177,39 @@ void initializeDisplay() {
   display.print("Page ");
   display.println(currentPage);
   display.setCursor(0, 0);
-  if(currentPage == 0) {
+  
+  if(currentPage == 0) {// First Page
     display.setCursor(20, 20);
     display.println("Welcome to the");
     display.setCursor(40, 30);
     display.println("KTT remote");
     display.setCursor(0, 0);
-  } else {
-    display.print("B1 to go Node ");
-    display.print(currentPage); 
-    display.println(" <- ");
+  } else if(currentPage == 1) { // Back Button Header for Broadcasting Page
+    display.print("B1 to Welcome"); 
+    display.println(" <-");
+  } else if(currentPage == 2) { // Back Button for first node
+    display.print("B1 to Broadcasting"); 
+    display.println(" <-");
+  } else { // Back Button for all other nodes
+    display.print("B1 to Node ");
+    display.print(currentPage - 1); 
+    display.println(" <-");
   }
-  if(currentPage < numPages) {
-    display.print("B2 to go Node ");
-    display.print(currentPage + 1); 
-    display.println(" -> ");
+  
+  if(currentPage == 0) { // Next Page header for Welcome
+    display.print("B2 to Broadcasting"); 
+    display.println(" ->");
+  } else if(currentPage < numPages) { // Next Page header for everyother page except last
+    display.print("B2 to Node ");
+    display.print(currentPage); 
+    display.println(" ->");
+  }
+
+  // Broadcast Page header
+  if(currentPage == 1) {
+     display.setTextSize(1.4);
+     display.setCursor(10, 20);
+     display.println("Broadcast to all"); 
   }
 }
 
@@ -265,7 +295,15 @@ void loop() {
     }*/
     (queueList[queueNum]).peek(&frontOfStack);
     //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-    if(queueNum == currentPage - 1 && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
+    
+    // put message in stack if 
+      // on the broadcast page or the current node page and 
+      // the message is not on the front of the stack and 
+      // the message is not the last received message and 
+      // the frontof the stack doesn't equal 0 and
+      // the message doesnt equal 0 and
+      // the queue is not full
+    if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
       printf("adding %s to stack %d\n", msg, queueNum);
       (queueList[queueNum]).push(&msg);
     }
