@@ -121,12 +121,10 @@ void sendMessage() {
         taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5 )); 
       }
     } else {
-  
       msg = "-2";
-      if(!(queueList[queueNum]).isEmpty())){
+      if(!(queueList[queueNum]).isEmpty()){
         (queueList[queueNum]).pop(&msg);
       }
-      //new code HERE
       SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
       //begin gets a pointer for the beginning of the array connectedNodes
       int nodeNum = 0; //an index (where you are in node), where node is a pointer 
@@ -139,11 +137,7 @@ void sendMessage() {
         nodeNum++;
       }
       taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5 )); 
-      //very similar to lines 86-96
-      //differences:
-      //send -2 using sendSingle method and using the while for connectedNodes.end
-      //changes: nothing
-      
+    }
   }
 }
 
