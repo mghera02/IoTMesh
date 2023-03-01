@@ -59,6 +59,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Declaration
 void sendMessage() ; // Prototype so PlatformIO doesn't complain
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
 
+
+/*
+ * this is where I (Bree) am updating the current mesh file, sendMessage
+ */
 void sendMessage() {
   for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
     // Popping Queue when hits size limit
@@ -76,32 +80,70 @@ void sendMessage() {
       // 3. stack isnt empty
     // else
       // send -2 and pop if queue isnt empty
-    if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
-      if(!((queueList[queueNum]).isEmpty())) {
+    if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") { // zero can't be sent as a message, essentially no message
+      if(!((queueList[queueNum]).isEmpty())) { 
         (queueList[queueNum]).peek(&frontOfStack);
-        SimpleList<uint32_t>::iterator node = connectedNodes.begin();
-        int nodeNum = 0;
+        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
+        //begin gets a pointer for the beginning of the array connectedNodes
+        int nodeNum = 0; //an index (where you are in node), where node is a pointer 
         while (node != connectedNodes.end()) {
-          if(nodeNum == queueNum) {
-            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum);
-            mesh.sendSingle(*node, frontOfStack); 
+          if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
+            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum); //*node is that pointer for that value in array, = nodeID
+            mesh.sendSingle(*node, frontOfStack); //sends the value in the frontOfStack (front of queNum array) to the node pointer (to nodeID), frontOfStack message sent to nodeID
           }
           node++;
           nodeNum++;
         }
-        taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
+        taskSendMessage.setInterval( random( TASK_SECOND * 0.1, TASK_SECOND * 0.2 )); 
       } else {
-        msg = "-2";
-        mesh.sendBroadcast( msg );
+      /*
+       * in the bottom else statement where it broadcasts, change it to no longer broadcasting
+       * instead send individual messages to each node, like it does in body of if statement
+       * things to note:
+       *      the whole function is already part of a for loop going through each node but I'll still need to make another loop
+       *      because they go through different parts of the nodes (queues vs. Node ID's)
+       * 
+       * do that in the else statement after addition of each node individually
+        */
+        //will have the exact same code as the else statement below (except for an included if in the else beneath)
+        msg = "-2"; // -2 symbolizes nothing or no message (-1 is zero)
+        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
+        //begin gets a pointer for the beginning of the array connectedNodes
+        int nodeNum = 0; //an index (where you are in node), where node is a pointer 
+        while (node != connectedNodes.end()) {
+          if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
+            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum); //*node is that pointer for that value in array, = nodeID
+            mesh.sendSingle(*node, frontOfStack); //sends the value in the frontOfStack (front of queNum array) to the node pointer (to nodeID), frontOfStack message sent to nodeID
+          }
+          node++;
+          nodeNum++;
+        }
+        taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5 )); 
       }
     } else {
-      // TODO: DONT BROADCAST HERE
+  
       msg = "-2";
-      mesh.sendBroadcast( msg );
-      if(!((queueList[queueNum]).isEmpty())) {
+      if(!(queueList[queueNum]).isEmpty())){
         (queueList[queueNum]).pop(&msg);
-      }  
-    } 
+      }
+      //new code HERE
+      SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
+      //begin gets a pointer for the beginning of the array connectedNodes
+      int nodeNum = 0; //an index (where you are in node), where node is a pointer 
+      while (node != connectedNodes.end()) {
+        if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
+          Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum); //*node is that pointer for that value in array, = nodeID
+          mesh.sendSingle(*node, frontOfStack); //sends the value in the frontOfStack (front of queNum array) to the node pointer (to nodeID), frontOfStack message sent to nodeID
+        }
+        node++;
+        nodeNum++;
+      }
+      taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5 )); 
+      //very similar to lines 86-96
+      //differences:
+      //send -2 using sendSingle method and using the while for connectedNodes.end
+      //changes: nothing
+      
   }
 }
 
