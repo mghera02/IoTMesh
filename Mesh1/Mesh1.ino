@@ -1,3 +1,5 @@
+//Current Branch:
+//this branch is for Bree to make the submit button, 3/1/23
 // Make list for queue
 // Fill list
 
@@ -23,6 +25,7 @@
   int B2Pin = 0;
   int B1Pin = 2;
   int ledPin = 16;
+  int submitPin = 0;
 
   // PIN INPUT VALUES
   int potSensorValue = 0;
@@ -80,6 +83,7 @@ void sendMessage() {
       // 3. stack isnt empty
     // else
       // send -2 and pop if queue isnt empty
+
     if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") { // zero can't be sent as a message, essentially no message
       if(!((queueList[queueNum]).isEmpty())) { 
         (queueList[queueNum]).peek(&frontOfStack);
@@ -320,6 +324,23 @@ void loop() {
   //Serial.printf("potSensorValue %d \n", potSensorValue);
   analogWrite(ledPin, potSensorValue/10);
 
+
+    //NOTE FOR BREE
+  //understand the code below, will implement the submit button in a similar way
+  //sends the current message (top of stack) if the button is pressed
+  //sends -2 if not pressed
+  //store if button was pressed, which node, and if broadcast
+  //questions:
+  //how do i reset the submit state to be 0 after pressed???
+  //how does digitalRead actually work... can i get it to read 0 vs. 1?
+  int submitState = digitalRead(submitPin);
+  if(millis() - startTime > 500 && !submitState) {
+    if(submitState == 1){
+      printf("submitted\n"); //not 100% necessary but could be helpful for debugging
+    }
+    startTime = millis();
+  }
+
   // Push to stack
   msg = String(potSensorValue);
   for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
@@ -340,10 +361,15 @@ void loop() {
       // the message doesnt equal 0 and
       // the queue is not full
     if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
-      printf("adding %s to stack %d\n", msg, queueNum);
-      (queueList[queueNum]).push(&msg);
+      if (submitState == 1){
+        printf("adding %s to stack %d\n", msg, queueNum);
+        (queueList[queueNum]).push(&msg);
+      } else{
+        msg = "-2"; //do i still push this message?? 
+      }
     }
   }
+  
 
   // Page Changing for Display
   int buttonState2 = digitalRead(B2Pin);
