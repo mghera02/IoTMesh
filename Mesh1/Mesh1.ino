@@ -25,14 +25,17 @@
   int B2Pin = 0;
   int B1Pin = 2;
   int ledPin = 16;
-  int submitPin = 0;
+  int submitPin = 5; //number corresponds to the GPIO pin in esp8266 nodemcu pinout
+  
 
   // PIN INPUT VALUES
   int potSensorValue = 0;
   int lastPotSensorValue = 0;
+  bool submitClick = false;
 
   // TIMES
   unsigned long startTime = millis();
+  unsigned long startTimeSub = millis();
   unsigned long timeSinceOn = millis();
   unsigned long timeSinceMsgReceived = millis();
   unsigned long timeSinceUpdate = millis();
@@ -333,12 +336,13 @@ void loop() {
   //questions:
   //how do i reset the submit state to be 0 after pressed???
   //how does digitalRead actually work... can i get it to read 0 vs. 1?
-  int submitState = digitalRead(submitPin);
-  if(millis() - startTime > 500 && !submitState) {
-    if(submitState == 1){
-      printf("submitted\n"); //not 100% necessary but could be helpful for debugging
-    }
-    startTime = millis();
+  int submitState = digitalRead(submitPin); // 0 while being pressed, 1 when not
+  if(millis() - startTimeSub > 100 && !submitState) {
+    printf("Button is clicked\n"); //not 100% necessary but could be helpful for debugging
+    submitClick = true;
+    startTimeSub = millis();
+  } else{
+    submitClick = false;
   }
 
   // Push to stack
@@ -360,13 +364,13 @@ void loop() {
       // the frontof the stack doesn't equal 0 and
       // the message doesnt equal 0 and
       // the queue is not full
-    if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
-      if (submitState == 1){
+    if(submitClick == true){
+      printf("Submitting message to send");
+      if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
         printf("adding %s to stack %d\n", msg, queueNum);
         (queueList[queueNum]).push(&msg);
-      } else{
-        msg = "-2"; //do i still push this message?? 
       }
+      submitClick = false;
     }
   }
   
