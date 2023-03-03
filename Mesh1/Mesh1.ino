@@ -25,7 +25,7 @@
   int B2Pin = 0;
   int B1Pin = 2;
   int ledPin = 16;
-  int submitPin = 5; //number corresponds to the GPIO pin in esp8266 nodemcu pinout
+  int submitPin = 14; //number corresponds to the GPIO pin in esp8266 nodemcu pinout
   
 
   // PIN INPUT VALUES
