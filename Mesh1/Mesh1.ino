@@ -345,34 +345,34 @@ void loop() {
     submitClick = false;
   }
 
-  // Push to stack
+ // Push to stack
   msg = String(potSensorValue);
-  for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
-    // This is for testing purposes.
-    /*if(queueNum == 0) {
-      msg = "50";
-    } else {
-      msg = "254";
-    }*/
-    (queueList[queueNum]).peek(&frontOfStack);
-    //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-    
-    // put message in stack if 
-      // on the broadcast page or the current node page and 
-      // the message is not on the front of the stack and 
-      // the message is not the last received message and 
-      // the frontof the stack doesn't equal 0 and
-      // the message doesnt equal 0 and
-      // the queue is not full
-    if(submitClick == true){
-      printf("Submitting message to send");
+  if(submitClick == true){
+    printf("Submitting message to send\n");
+    for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
+      // This is for testing purposes.
+      /*if(queueNum == 0) {
+        msg = "50";
+      } else {
+        msg = "254";
+      }*/
+      (queueList[queueNum]).peek(&frontOfStack);
+      //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
+      
+      // put message in stack if 
+        // on the broadcast page or the current node page and 
+        // the message is not on the front of the stack and 
+        // the message is not the last received message and 
+        // the frontof the stack doesn't equal 0 and
+        // the message doesnt equal 0 and
+        // the queue is not full
       if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
         printf("adding %s to stack %d\n", msg, queueNum);
         (queueList[queueNum]).push(&msg);
       }
-      submitClick = false;
     }
   }
+  submitClick = false;
   
 
   // Page Changing for Display
