@@ -1,3 +1,5 @@
+//Current Branch:
+//this branch is for Bree to make the submit button, 3/1/23
 // Make list for queue
 // Fill list
 
@@ -23,13 +25,17 @@
   int B2Pin = 0;
   int B1Pin = 2;
   int ledPin = 16;
+  int submitPin = 14; //number corresponds to the GPIO pin in esp8266 nodemcu pinout
+  
 
   // PIN INPUT VALUES
   int potSensorValue = 0;
   int lastPotSensorValue = 0;
+  bool submitClick = false;
 
   // TIMES
   unsigned long startTime = millis();
+  unsigned long startTimeSub = millis();
   unsigned long timeSinceOn = millis();
   unsigned long timeSinceMsgReceived = millis();
   unsigned long timeSinceUpdate = millis();
@@ -80,6 +86,7 @@ void sendMessage() {
       // 3. stack isnt empty
     // else
       // send -2 and pop if queue isnt empty
+
     if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") { // zero can't be sent as a message, essentially no message
       if(!((queueList[queueNum]).isEmpty())) { 
         (queueList[queueNum]).peek(&frontOfStack);
@@ -320,30 +327,53 @@ void loop() {
   //Serial.printf("potSensorValue %d \n", potSensorValue);
   analogWrite(ledPin, potSensorValue/10);
 
-  // Push to stack
+
+    //NOTE FOR BREE
+  //understand the code below, will implement the submit button in a similar way
+  //sends the current message (top of stack) if the button is pressed
+  //sends -2 if not pressed
+  //store if button was pressed, which node, and if broadcast
+  //questions:
+  //how do i reset the submit state to be 0 after pressed???
+  //how does digitalRead actually work... can i get it to read 0 vs. 1?
+  int submitState = digitalRead(submitPin); // 0 while being pressed, 1 when not
+  if(millis() - startTimeSub > 100 && !submitState) {
+    printf("Button is clicked\n"); //not 100% necessary but could be helpful for debugging
+    submitClick = true;
+    startTimeSub = millis();
+  } else{
+    submitClick = false;
+  }
+
+ // Push to stack
   msg = String(potSensorValue);
-  for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
-    // This is for testing purposes.
-    /*if(queueNum == 0) {
-      msg = "50";
-    } else {
-      msg = "254";
-    }*/
-    (queueList[queueNum]).peek(&frontOfStack);
-    //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-    
-    // put message in stack if 
-      // on the broadcast page or the current node page and 
-      // the message is not on the front of the stack and 
-      // the message is not the last received message and 
-      // the frontof the stack doesn't equal 0 and
-      // the message doesnt equal 0 and
-      // the queue is not full
-    if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
-      printf("adding %s to stack %d\n", msg, queueNum);
-      (queueList[queueNum]).push(&msg);
+  if(submitClick == true){
+    printf("Submitting message to send\n");
+    for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
+      // This is for testing purposes.
+      /*if(queueNum == 0) {
+        msg = "50";
+      } else {
+        msg = "254";
+      }*/
+      (queueList[queueNum]).peek(&frontOfStack);
+      //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
+      
+      // put message in stack if 
+        // on the broadcast page or the current node page and 
+        // the message is not on the front of the stack and 
+        // the message is not the last received message and 
+        // the frontof the stack doesn't equal 0 and
+        // the message doesnt equal 0 and
+        // the queue is not full
+      if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
+        printf("adding %s to stack %d\n", msg, queueNum);
+        (queueList[queueNum]).push(&msg);
+      }
     }
   }
+  submitClick = false;
+  
 
   // Page Changing for Display
   int buttonState2 = digitalRead(B2Pin);
