@@ -8,6 +8,7 @@
 // LIBRARIES
 #include "painlessMesh.h"      // Mesh WiFi
 #include <cppQueue.h>          // Queue
+#include <StackArray.h>        // stack (https://github.com/oogre/StackArray)
 #include <Wire.h>              // Communicating with I2C for OLED Screen
 #include <Adafruit_GFX.h>      // For OLED Screen
 #include <Adafruit_SSD1306.h>  // For OLED Screen
@@ -29,8 +30,10 @@
   
 
   // PIN INPUT VALUES
+  StackArray <int> numberPadStack;
   int potSensorValue = 0;
   int lastPotSensorValue = 0;
+  int binaryToDecSum = 0;
   bool submitClick = false;
 
   // TIMES
@@ -66,9 +69,6 @@ void sendMessage() ; // Prototype so PlatformIO doesn't complain
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
 
 
-/*
- * this is where I (Bree) am updating the current mesh file, sendMessage
- */
 void sendMessage() {
   for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
     // Popping Queue when hits size limit
@@ -103,19 +103,8 @@ void sendMessage() {
         }
         taskSendMessage.setInterval( random( TASK_SECOND * 0.1, TASK_SECOND * 0.2 )); 
       } else {
-      /*
-       * in the bottom else statement where it broadcasts, change it to no longer broadcasting
-       * instead send individual messages to each node, like it does in body of if statement
-       * things to note:
-       *      the whole function is already part of a for loop going through each node but I'll still need to make another loop
-       *      because they go through different parts of the nodes (queues vs. Node ID's)
-       * 
-       * do that in the else statement after addition of each node individually
-        */
-        //will have the exact same code as the else statement below (except for an included if in the else beneath)
         msg = "-2"; // -2 symbolizes nothing or no message (-1 is zero)
-        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
-        //begin gets a pointer for the beginning of the array connectedNodes
+        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds //begin gets a pointer for the beginning of the array connectedNodes
         int nodeNum = 0; //an index (where you are in node), where node is a pointer 
         while (node != connectedNodes.end()) {
           if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
@@ -132,8 +121,7 @@ void sendMessage() {
       if(!(queueList[queueNum]).isEmpty()){
         (queueList[queueNum]).pop(&msg);
       }
-      SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
-      //begin gets a pointer for the beginning of the array connectedNodes
+      SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds //begin gets a pointer for the beginning of the array connectedNodes
       int nodeNum = 0; //an index (where you are in node), where node is a pointer 
       while (node != connectedNodes.end()) {
         if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
@@ -195,7 +183,19 @@ void updateDisplayContent() {
     } else { // every other node page
       display.setCursor(30, 25); 
     }
-    display.print("Power: ");
+    display.print("Send: ");
+    String displayNumber = "";
+    int numPadStackSize = numberPadStack.count();
+    while(!numberPadStack.isEmpty()) {
+      displayNumber.concat(numberPadStack.pop());
+    }
+    display.println(displayNumber);
+    for (int i = 0; i < numPadStackSize; i++) {
+      //Serial.printf("%d, %d\n",i, int(displayNumber.charAt(i) - '0'));
+      numberPadStack.unshift(int(displayNumber.charAt(i) - '0'));
+    }
+    
+    display.print("Recieved: ");
     const char* receivedMessagesConverted;
     String content;
     if(currentPage == 1) { // broadcast page
@@ -327,18 +327,9 @@ void loop() {
   //Serial.printf("potSensorValue %d \n", potSensorValue);
   analogWrite(ledPin, potSensorValue/10);
 
-
-    //NOTE FOR BREE
-  //understand the code below, will implement the submit button in a similar way
-  //sends the current message (top of stack) if the button is pressed
-  //sends -2 if not pressed
-  //store if button was pressed, which node, and if broadcast
-  //questions:
-  //how do i reset the submit state to be 0 after pressed???
-  //how does digitalRead actually work... can i get it to read 0 vs. 1?
   int submitState = digitalRead(submitPin); // 0 while being pressed, 1 when not
   if(millis() - startTimeSub > 100 && !submitState) {
-    printf("Button is clicked\n"); //not 100% necessary but could be helpful for debugging
+    printf("Button is clicked\n");
     submitClick = true;
     startTimeSub = millis();
   } else{
@@ -350,12 +341,6 @@ void loop() {
   if(submitClick == true){
     printf("Submitting message to send\n");
     for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
-      // This is for testing purposes.
-      /*if(queueNum == 0) {
-        msg = "50";
-      } else {
-        msg = "254";
-      }*/
       (queueList[queueNum]).peek(&frontOfStack);
       //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
       
@@ -379,7 +364,7 @@ void loop() {
   int buttonState2 = digitalRead(B2Pin);
   if(millis() - startTime > 500 && !buttonState2) {
     if(currentPage < numPages) {
-      printf("page right\n");
+      Serial.printf("page right\n");
       currentPage++;
     }
     startTime = millis();
@@ -387,10 +372,50 @@ void loop() {
   int buttonState1 = digitalRead(B1Pin);
   if(millis() - startTime > 500 && !buttonState1) {
     if(currentPage > 0) {
-      printf("page left\n");
+      Serial.printf("page left\n");
       currentPage--;
     }
     startTime = millis();
+  }
+
+  // testing. There is no good way to test this yet without the PCB. Probably has some bugs but it works so far with the minimal testing was able to do.
+  //binaryToDecSum = 3;
+  binaryToDecSum = x0 + 2 * x1 + 4 * x2 + 8 * x3;
+  if(binaryToDecSum <= 9) {
+    // add number to number pad queue
+    if(numberPadStack.count() <= 4) {
+      //Serial.printf("adding %d to the number pad stack\n", binaryToDecSum);
+      numberPadStack.push(binaryToDecSum); 
+    }
+  } else {
+    switch(binaryToDecSum) {
+      case 10:
+        // Make page go left
+        if(currentPage > 0) {
+          Serial.printf("page left\n");
+          currentPage--;
+        }
+        break;   
+      case 11:
+        // Make page go right
+        if(currentPage < numPages) {
+          Serial.printf("page right\n");
+          currentPage++;
+        }
+        break;
+      case 12:
+        // Submit and clear queue  
+        while (!numberPadStack.isEmpty ()) {
+          Serial.printf("deleting stack\n");
+          numberPadStack.pop();
+        }
+        break;
+      case 13:
+        // Delete (remove from bottom of stack)
+        Serial.printf("deleting bottom of stack\n");
+        numberPadStack.pop();
+        break;
+    } 
   }
 
   // Updating Display
