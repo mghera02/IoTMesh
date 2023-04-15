@@ -60,7 +60,11 @@ void sendMessage() {
   uint32_t rootId = getRootId(mesh.asNodeTree());
   Serial.printf("sending %s to %u\n", msg, rootId);
   mesh.sendSingle(rootId, msg);
-  taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 ));
+  if(atoi(receivedMsg.c_str()) == -2) {
+    taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5)); 
+  } else {
+    taskSendMessage.setInterval( random( TASK_SECOND * 0.1, TASK_SECOND * 0.2 ));
+  }
 }
 
 // Recieve message

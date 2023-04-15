@@ -79,35 +79,24 @@ void sendMessage() {
       // 3. stack isnt empty
     // else
       // send -2 and pop if queue isnt empty
-
-    if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") { // zero can't be sent as a message, essentially no message
-      if(!((queueList[queueNum]).isEmpty())) { 
+    if(frontOfStack != receivedMsg && frontOfStack != "0" && msg != "0") {
+      if(!((queueList[queueNum]).isEmpty())) {
         (queueList[queueNum]).peek(&frontOfStack);
-        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds
-        //begin gets a pointer for the beginning of the array connectedNodes
-        int nodeNum = 0; //an index (where you are in node), where node is a pointer 
+        SimpleList<uint32_t>::iterator node = connectedNodes.begin();
+        int nodeNum = 0;
         while (node != connectedNodes.end()) {
-          if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
-            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum); //*node is that pointer for that value in array, = nodeID
-            mesh.sendSingle(*node, frontOfStack); //sends the value in the frontOfStack (front of queNum array) to the node pointer (to nodeID), frontOfStack message sent to nodeID
+          if(nodeNum == queueNum) {
+            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum);
+            mesh.sendSingle(*node, frontOfStack); 
           }
           node++;
           nodeNum++;
         }
-        taskSendMessage.setInterval( random( TASK_SECOND * 0.05, TASK_SECOND * 0.1 )); 
+        taskSendMessage.setInterval( random( TASK_SECOND * 0.1, TASK_SECOND * 0.2 )); 
       } else {
-        msg = "-2"; // -2 symbolizes nothing or no message (-1 is zero)
-        SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds //begin gets a pointer for the beginning of the array connectedNodes
-        int nodeNum = 0; //an index (where you are in node), where node is a pointer 
-        while (node != connectedNodes.end()) {
-          if(nodeNum == queueNum) { //the index (Num == Index of that array, not the node ID)
-            Serial.printf("sending %s to %u from stack %d\n", frontOfStack, *node, queueNum); //*node is that pointer for that value in array, = nodeID
-            mesh.sendSingle(*node, frontOfStack); //sends the value in the frontOfStack (front of queNum array) to the node pointer (to nodeID), frontOfStack message sent to nodeID
-          }
-          node++;
-          nodeNum++;
-        }
-        taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5 )); 
+        msg = "-2";
+        mesh.sendBroadcast( msg );
+        taskSendMessage.setInterval( random( TASK_SECOND * 0.5, TASK_SECOND * 1 )); 
       }
     } else {
       msg = "-2";
@@ -125,10 +114,9 @@ void sendMessage() {
         nodeNum++;
       }
       taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 1.5 )); 
-    }
+   }
   }
 }
-
 void receivedCallback( uint32_t from, String &msg ) {
   Serial.printf("Received from %u msg=%s\n", from, msg.c_str());
   receivedMsg = msg.c_str();
@@ -341,7 +329,7 @@ void loop() {
   msg = String(potSensorValue);
   // ADD THIS BACK IN ONCE PCB IS DONE
   //if(submitClick == true){
-    printf("Submitting message to send\n");
+    //printf("Submitting message to send\n");
     for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
       (queueList[queueNum]).peek(&frontOfStack);
       //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
