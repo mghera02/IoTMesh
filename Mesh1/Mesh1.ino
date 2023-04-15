@@ -1,10 +1,3 @@
-//Current Branch:
-//this branch is for Bree to make the submit button, 3/1/23
-// Make list for queue
-// Fill list
-
-// THIS IS NODE 2741409788
-
 // LIBRARIES
 #include "painlessMesh.h"      // Mesh WiFi
 #include <cppQueue.h>          // Queue
@@ -66,7 +59,7 @@ Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 void sendMessage() ; // Prototype so PlatformIO doesn't complain
-Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
+Task taskSendMessage( TASK_SECOND * .5 , TASK_FOREVER, &sendMessage );
 
 
 void sendMessage() {
@@ -101,7 +94,7 @@ void sendMessage() {
           node++;
           nodeNum++;
         }
-        taskSendMessage.setInterval( random( TASK_SECOND * 0.1, TASK_SECOND * 0.2 )); 
+        taskSendMessage.setInterval( random( TASK_SECOND * 0.05, TASK_SECOND * 0.1 )); 
       } else {
         msg = "-2"; // -2 symbolizes nothing or no message (-1 is zero)
         SimpleList<uint32_t>::iterator node = connectedNodes.begin(); //searches through connectedNodes array, holds NodeIds //begin gets a pointer for the beginning of the array connectedNodes
@@ -176,15 +169,23 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 
 // Updating OLED Display
 void updateDisplayContent() {
+  String content;
+  int spacing;
+  
   if(currentPage >= 1) {
     display.setTextSize(1.4);
     if(currentPage == 1) { // broadcast page
       display.setCursor(30, 35); 
+      spacing = 10;
     } else { // every other node page
-      display.setCursor(30, 25); 
+      display.setCursor(30, 25);
+      spacing = 0; 
     }
     display.print("Send: ");
-    String displayNumber = "";
+    content = String(atoi(msg.c_str()) * 100 / 1024);
+    display.println(content);
+    // WAITING TO USE THIS UNTIL WE HAVE THE PCB
+    /*String displayNumber = "";
     int numPadStackSize = numberPadStack.count();
     while(!numberPadStack.isEmpty()) {
       displayNumber.concat(numberPadStack.pop());
@@ -193,11 +194,11 @@ void updateDisplayContent() {
     for (int i = 0; i < numPadStackSize; i++) {
       //Serial.printf("%d, %d\n",i, int(displayNumber.charAt(i) - '0'));
       numberPadStack.unshift(int(displayNumber.charAt(i) - '0'));
-    }
-    
+    }*/
+
+    display.setCursor(25, 35 + spacing); 
     display.print("Recieved: ");
     const char* receivedMessagesConverted;
-    String content;
     if(currentPage == 1) { // broadcast page
       const char* receivedMessagesConverted = receivedMessages[0].c_str();
       content = String(atoi(receivedMessagesConverted) * 100 / 1024);
@@ -338,7 +339,8 @@ void loop() {
 
  // Push to stack
   msg = String(potSensorValue);
-  if(submitClick == true){
+  // ADD THIS BACK IN ONCE PCB IS DONE
+  //if(submitClick == true){
     printf("Submitting message to send\n");
     for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
       (queueList[queueNum]).peek(&frontOfStack);
@@ -355,7 +357,7 @@ void loop() {
         printf("adding %s to stack %d\n", msg, queueNum);
         (queueList[queueNum]).push(&msg);
       }
-    }
+    //}
   }
   submitClick = false;
   
@@ -379,8 +381,8 @@ void loop() {
   }
 
   // testing. There is no good way to test this yet without the PCB. Probably has some bugs but it works so far with the minimal testing was able to do.
-  //binaryToDecSum = 3;
-  binaryToDecSum = x0 + 2 * x1 + 4 * x2 + 8 * x3;
+  binaryToDecSum = 3;
+  //binaryToDecSum = x0 + 2 * x1 + 4 * x2 + 8 * x3;
   if(binaryToDecSum <= 9) {
     // add number to number pad queue
     if(numberPadStack.count() <= 4) {
