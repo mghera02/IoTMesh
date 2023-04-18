@@ -12,6 +12,7 @@
 // GLOBAL VARIABLES
   // PINS
   int ledPin = 12;
+  bool ledState = false;
   // 7 SEGMENT DISPLAY PINS
   int cathode1 = 5;
   int cathode2 = 4;
@@ -28,6 +29,7 @@
   unsigned long timeSinceUpdate = millis();
   unsigned long timeSinceMsgReceived = millis();
   unsigned long timeSinceDisplayUpdate = millis();
+  unsigned long lastBlinkTime = millis();
 
   // 7 SEGMENT DISPLAY
   long number = 0; 
@@ -165,10 +167,26 @@ void screenOff() {
   digitalWrite(cathode1, HIGH);
 }
 
+unsigned long blinkTempo(int tempo, unsigned long lastBlinkTime) {
+  unsigned long newBlinkTime = lastBlinkTime;
+  //Serial.printf("millis() - tempo/1024 * 1000 > lastBlinkTime: %d - %d > %d\n", millis(), tempo, lastBlinkTime);
+  float bpm = (60000.0 / tempo) * 4;
+  if (millis() * 1000 - bpm * 1000 > lastBlinkTime * 1000) {
+    Serial.printf("ledState %d\n", ledState);
+    digitalWrite(ledPin, ledState);
+    ledState = !ledState;
+    newBlinkTime = millis();
+  }
+
+  return newBlinkTime;
+}
+
+
 void loop() {
     mesh.update();
-    analogWrite(ledPin, lastValue / 4);
+    //analogWrite(ledPin, lastValue / 4);
     Serial.printf("output value: %d\n", lastValue / 4);
+    lastBlinkTime = blinkTempo(lastValue, lastBlinkTime);
 
     // Tracking how long connection has been successful
     if(millis() - timeSinceMsgReceived > 60000) {

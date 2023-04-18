@@ -18,7 +18,7 @@
   int potPin = A0;
   int B2Pin = 0;
   int B1Pin = 2;
-  int ledPin = 16;
+  int ledPin = 15;
   int submitPin = 14; //number corresponds to the GPIO pin in esp8266 nodemcu pinout
   
 
@@ -28,6 +28,7 @@
   int lastPotSensorValue = 0;
   int binaryToDecSum = 0;
   bool submitClick = false;
+  bool ledState = false;
 
   // TIMES
   unsigned long startTime = millis();
@@ -35,6 +36,7 @@
   unsigned long timeSinceOn = millis();
   unsigned long timeSinceMsgReceived = millis();
   unsigned long timeSinceUpdate = millis();
+  unsigned long lastBlinkTime = millis();
 
   // WiFi COMMUNICATION MESSAGE
   SimpleList<uint32_t> connectedNodes;
@@ -236,6 +238,20 @@ void initializeDisplay() {
   }
 }
 
+unsigned long blinkTempo(int tempo, unsigned long lastBlinkTime) {
+  unsigned long newBlinkTime = lastBlinkTime;
+  //Serial.printf("millis() - tempo/1024 * 1000 > lastBlinkTime: %d - %d > %d\n", millis(), tempo, lastBlinkTime);
+  float bpm = (60000.0 / tempo) * 4;
+  if (millis() * 1000 - bpm * 1000 > lastBlinkTime * 1000) {
+    Serial.printf("ledState %d\n", ledState);
+    digitalWrite(ledPin, ledState);
+    ledState = !ledState;
+    newBlinkTime = millis();
+  }
+
+  return newBlinkTime;
+}
+
 void setUpMesh() {
   //mesh.setDebugMsgTypes( ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE ); // all types on
   mesh.setDebugMsgTypes( ERROR | STARTUP );  // set before init() so that you can see startup messages
@@ -304,8 +320,9 @@ void loop() {
   if(potSensorValue < 100) {
     potSensorValue = -1;
   }
-  //Serial.printf("potSensorValue %d \n", potSensorValue);
-  analogWrite(ledPin, potSensorValue/10);
+  //Serial.printf("potSensorValue %d, lastBlinkTime %d, ledState %d\n", potSensorValue, lastBlinkTime, ledState);
+  //analogWrite(ledPin, potSensorValue/10);
+  lastBlinkTime = blinkTempo(potSensorValue, lastBlinkTime);
 
   int submitState = digitalRead(submitPin); // 0 while being pressed, 1 when not
   if(millis() - startTimeSub > 100 && !submitState) {
