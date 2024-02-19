@@ -5,6 +5,8 @@
 #include <Wire.h>              // Communicating with I2C for OLED Screen
 #include <Adafruit_GFX.h>      // For OLED Screen
 #include <Adafruit_SSD1306.h>  // For OLED Screen
+#include "ShiftIn.h"
+#include <math.h>
 
 // CONSTANTS
 #define   MESH_PREFIX     "IoTHub"     // Mesh WiFI name
@@ -20,6 +22,10 @@
   int B1Pin = 2;
   int ledPin = 15;
   int submitPin = 14; //number corresponds to the GPIO pin in esp8266 nodemcu pinout
+  int LATCH = 16; // (1) (esp8266 was 16(D0) -> huzzah is IO16 (pin4))
+  int DATA  = 12; // (9) (esp8266 was 12(D6) -> huzzah is IO12 (pin 6))
+  int CLOCK = 14; // (2) (esp8266 was 14(D5) -> huzzah is IO14 (pin 5))
+  int clockEnablePin = 15; // (esp8266 was 5(D1) -> huzzah is IO15 (pin10))
   
 
   // PIN INPUT VALUES
@@ -51,11 +57,16 @@
   int numPages = numNodesAllowed + 1;
   int displayContent = -1;
 
+  // Num pad
+  String numPadStr = "";
+  int currStrLen = 0;
+
 // INITIALIZING OBJECTS
 cppQueue  sending_queue1(sizeof(String), 20); // Message queue (this is used because wifi only send every 1-2 seconds. That means data could be lost if it is changed more frequently than every 1-2 seconds. Using a queue fixes that.)
 cppQueue  sending_queue2(sizeof(String), 20);
 cppQueue queueList[numNodesAllowed] = {sending_queue1, sending_queue2}; // Makes list of queues for each node (has max connection of 2 nodes for now)
 String receivedMessages[numNodesAllowed] = {"-1", "-1"};
+ShiftIn<2> shift;
 
 Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
@@ -273,6 +284,25 @@ void setUpMesh() {
   taskSendMessage.enable();
 }
 
+int displayValues() {
+  int shiftedInDecimalNumber = 0;
+  for(int i = 0; i < shift.getDataWidth(); i++) {
+    shiftedInDecimalNumber += shift.state(i) * pow(2, shift.getDataWidth() - i - 1);
+    Serial.print( shift.state(i) );
+  }
+  Serial.println();
+  Serial.println("That number in dec was: "+ String(shiftedInDecimalNumber));
+  return shiftedInDecimalNumber;
+}
+
+void addNumToStr(int num) {
+  if(numPadStr.length() <= 3) {
+      Serial.printf("adding %d to the number pad stack\n", num);
+      numPadStr += String(num);
+      currStrLen++;
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -289,6 +319,7 @@ void setup() {
   pinMode(B1Pin, INPUT);
   pinMode(B2Pin, INPUT);
   pinMode(ledPin, OUTPUT);
+  shift.begin(LATCH, clockEnablePin, DATA, CLOCK);
 }
 
 void loop() {
@@ -376,45 +407,61 @@ void loop() {
     startTime = millis();
   }
 
-  // testing. There is no good way to test this yet without the PCB. Probably has some bugs but it works so far with the minimal testing was able to do.
-  binaryToDecSum = 3;
-  //binaryToDecSum = x0 + 2 * x1 + 4 * x2 + 8 * x3;
-  if(binaryToDecSum <= 9) {
-    // add number to number pad queue
-    if(numberPadStack.count() <= 4) {
-      //Serial.printf("adding %d to the number pad stack\n", binaryToDecSum);
-      numberPadStack.push(binaryToDecSum); 
-    }
-  } else {
-    switch(binaryToDecSum) {
-      case 10:
-        // Make page go left
-        if(currentPage > 0) {
-          Serial.printf("page left\n");
-          currentPage--;
-        }
-        break;   
-      case 11:
-        // Make page go right
-        if(currentPage < numPages) {
-          Serial.printf("page right\n");
-          currentPage++;
-        }
-        break;
-      case 12:
-        // Submit and clear queue  
-        while (!numberPadStack.isEmpty ()) {
-          Serial.printf("deleting stack\n");
-          numberPadStack.pop();
-        }
-        break;
-      case 13:
-        // Delete (remove from bottom of stack)
-        Serial.printf("deleting bottom of stack\n");
-        numberPadStack.pop();
-        break;
-    } 
+  int numpadNumber = 0;
+  if(shift.update()) {
+    numpadNumber = displayValues();
   }
+  
+  switch(numpadNumber) {
+    case 24576: // keypad number 0 equates to 0
+      addNumToStr(0);
+      break;
+    case 16: // keypad number 1 equates to 1
+      addNumToStr(1);
+      break;
+    case 32: // keypad number 2 equates to 2
+      addNumToStr(2);
+      break;
+    case 64: // keypad number 3 equates to 3
+      addNumToStr(3);
+      break;
+    case 128: // keypad number 4 equates to 4
+      addNumToStr(4);
+      break;
+    case 8: // keypad number 5 equates to 5
+      addNumToStr(5);
+      break;
+    case 6: // keypad number 6 equates to 6
+      addNumToStr(6);
+      break;
+    case 2: // keypad number 7 equates to #7
+      addNumToStr(7);
+      break;
+    case 3: // keypad number 8 equates to #8
+      addNumToStr(8);
+      break;
+    case 4096: // keypad number 9 equates to #9
+      addNumToStr(9);
+      break;
+    case 1024: // keypad number 10 equates to delete
+      Serial.printf("DELETE\n");
+      numPadStr = numPadStr.substring(0, --currStrLen);
+      break;
+    case 16384: // keypad number 11 equates to LEFT
+      // Left code here
+      Serial.printf("LEFT\n");
+      break;
+    case 32768: // keypad number 12 equates to RIGHT
+      // right code here
+      Serial.printf("RIGHT\n");
+      break;
+    case 2048: // keypad number 13 equates to SUBMIT
+      // submit code here
+      Serial.printf("SUBMIT\n");
+      break;
+  }
+
+  Serial.println("Current num pad string: " + numPadStr);
 
   // Updating Display
   initializeDisplay();
