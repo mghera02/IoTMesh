@@ -185,7 +185,7 @@ unsigned long blinkTempo(int tempo, unsigned long lastBlinkTime) {
 void loop() {
     mesh.update();
     //analogWrite(ledPin, lastValue / 4);
-    Serial.printf("output value: %d\n", lastValue / 4);
+    Serial.printf("output value: %d\n", lastValue);
     lastBlinkTime = blinkTempo(lastValue, lastBlinkTime);
 
     // Tracking how long connection has been successful

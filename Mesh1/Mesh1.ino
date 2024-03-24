@@ -174,19 +174,8 @@ void updateDisplayContent() {
       spacing = 0; 
     }
     display.print("Send: ");
-    content = String(atoi(msg.c_str()) * 100 / 1024);
+    content = numPadStr;
     display.println(content);
-    // WAITING TO USE THIS UNTIL WE HAVE THE PCB
-    /*String displayNumber = "";
-    int numPadStackSize = numberPadStack.count();
-    while(!numberPadStack.isEmpty()) {
-      displayNumber.concat(numberPadStack.pop());
-    }
-    display.println(displayNumber);
-    for (int i = 0; i < numPadStackSize; i++) {
-      //Serial.printf("%d, %d\n",i, int(displayNumber.charAt(i) - '0'));
-      numberPadStack.unshift(int(displayNumber.charAt(i) - '0'));
-    }*/
 
     display.setCursor(25, 35 + spacing); 
     display.print("Recieved: ");
@@ -338,80 +327,12 @@ void loop() {
     //Serial.printf(" %u", *node);
     node++;
   }*/
-  
-  // Potentiometer
-  potSensorValue = analogRead(potPin);
-  if(potSensorValue > lastPotSensorValue + 30 || potSensorValue < lastPotSensorValue - 30) {
-    Serial.printf("potSensorValue %d. LastPotSensorValue %d. Changing. \n", potSensorValue, lastPotSensorValue);
-    lastPotSensorValue = potSensorValue;
-  } else {
-    //Serial.printf("potSensorValue %d. LastPotSensorValue %d. Staying the same. \n", potSensorValue, lastPotSensorValue);
-    potSensorValue = lastPotSensorValue;
-  }
-  if(potSensorValue < 100) {
-    potSensorValue = -1;
-  }
-  //Serial.printf("potSensorValue %d, lastBlinkTime %d, ledState %d\n", potSensorValue, lastBlinkTime, ledState);
-  //analogWrite(ledPin, potSensorValue/10);
-  lastBlinkTime = blinkTempo(potSensorValue, lastBlinkTime);
-
-  int submitState = digitalRead(submitPin); // 0 while being pressed, 1 when not
-  if(millis() - startTimeSub > 100 && !submitState) {
-    printf("Button is clicked\n");
-    submitClick = true;
-    startTimeSub = millis();
-  } else{
-    submitClick = false;
-  }
-
- // Push to stack
-  msg = String(potSensorValue);
-  // ADD THIS BACK IN ONCE PCB IS DONE
-  //if(submitClick == true){
-    //printf("Submitting message to send\n");
-    for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
-      (queueList[queueNum]).peek(&frontOfStack);
-      //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
-      
-      // put message in stack if 
-        // on the broadcast page or the current node page and 
-        // the message is not on the front of the stack and 
-        // the message is not the last received message and 
-        // the frontof the stack doesn't equal 0 and
-        // the message doesnt equal 0 and
-        // the queue is not full
-      if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
-        printf("adding %s to stack %d\n", msg, queueNum);
-        (queueList[queueNum]).push(&msg);
-      }
-    //}
-  }
-  submitClick = false;
-  
-
-  // Page Changing for Display
-  int buttonState2 = digitalRead(B2Pin);
-  if(millis() - startTime > 500 && !buttonState2) {
-    if(currentPage < numPages) {
-      Serial.printf("page right\n");
-      currentPage++;
-    }
-    startTime = millis();
-  }
-  int buttonState1 = digitalRead(B1Pin);
-  if(millis() - startTime > 500 && !buttonState1) {
-    if(currentPage > 0) {
-      Serial.printf("page left\n");
-      currentPage--;
-    }
-    startTime = millis();
-  }
 
   int numpadNumber = 0;
   if(shift.update()) {
     numpadNumber = displayValues();
   }
-  
+
   switch(numpadNumber) {
     case 24576: // keypad number 0 equates to 0
       addNumToStr(0);
@@ -431,13 +352,13 @@ void loop() {
     case 8: // keypad number 5 equates to 5
       addNumToStr(5);
       break;
-    case 6: // keypad number 6 equates to 6
+    case 4: // keypad number 6 equates to 6
       addNumToStr(6);
       break;
     case 2: // keypad number 7 equates to #7
       addNumToStr(7);
       break;
-    case 3: // keypad number 8 equates to #8
+    case 1: // keypad number 8 equates to #8
       addNumToStr(8);
       break;
     case 4096: // keypad number 9 equates to #9
@@ -450,14 +371,39 @@ void loop() {
     case 16384: // keypad number 11 equates to LEFT
       // Left code here
       Serial.printf("LEFT\n");
+      if(currentPage > 0) {
+        currentPage--;
+      }
       break;
     case 32768: // keypad number 12 equates to RIGHT
       // right code here
       Serial.printf("RIGHT\n");
+      if(currentPage < numPages) {
+        currentPage++;
+      }
       break;
     case 2048: // keypad number 13 equates to SUBMIT
       // submit code here
       Serial.printf("SUBMIT\n");
+      msg = numPadStr;
+      for(int queueNum = 0; queueNum < numNodesAllowed; queueNum++) {
+        (queueList[queueNum]).peek(&frontOfStack);
+        //printf("frontofstack %s, msg %s\n", frontOfStack, msg);
+        
+        // put message in stack if 
+          // on the broadcast page or the current node page and 
+          // the message is not on the front of the stack and 
+          // the message is not the last received message and 
+          // the frontof the stack doesn't equal 0 and
+          // the message doesnt equal 0 and
+          // the queue is not full
+        if((queueNum == currentPage - 2 || currentPage == 1) && frontOfStack != msg && msg != receivedMsg && frontOfStack != "0" && msg != "0" && !((queueList[queueNum]).isFull())) {
+          printf("adding %s to stack %d\n", msg, queueNum);
+          (queueList[queueNum]).push(&msg);
+        } else {
+          printf("didn't add to stack: %d %d %d %d %d %d\n", (queueNum == currentPage - 2 || currentPage == 1), frontOfStack != msg, msg != receivedMsg, frontOfStack != "0", msg != "0", !((queueList[queueNum]).isFull()));
+        }
+      }
       break;
   }
 
