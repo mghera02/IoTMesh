@@ -182,10 +182,10 @@ void updateDisplayContent() {
     const char* receivedMessagesConverted;
     if(currentPage == 1) { // broadcast page
       const char* receivedMessagesConverted = receivedMessages[0].c_str();
-      content = String(atoi(receivedMessagesConverted) * 100 / 1024);
+      content = String(atoi(receivedMessagesConverted));
     } else { // every other node page
       const char* receivedMessagesConverted = receivedMessages[currentPage - 2].c_str();
-      content = String(atoi(receivedMessagesConverted) * 100 / 1024);
+      content = String(atoi(receivedMessagesConverted));
     }
     display.print(content);
     display.println("%"); 
@@ -361,9 +361,9 @@ void loop() {
     case 1: // keypad number 8 equates to #8
       addNumToStr(8);
       break;
-    case 4096: // keypad number 9 equates to #9
-      addNumToStr(9);
-      break;
+    //case 4096: // keypad number 9 equates to #9
+      //addNumToStr(9);
+      //break;
     case 1024: // keypad number 10 equates to delete
       Serial.printf("DELETE\n");
       numPadStr = numPadStr.substring(0, --currStrLen);
@@ -382,7 +382,7 @@ void loop() {
         currentPage++;
       }
       break;
-    case 2048: // keypad number 13 equates to SUBMIT
+    case 4096: // keypad number 13 equates to SUBMIT
       // submit code here
       Serial.printf("SUBMIT\n");
       msg = numPadStr;

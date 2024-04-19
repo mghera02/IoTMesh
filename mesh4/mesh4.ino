@@ -167,18 +167,14 @@ void screenOff() {
   digitalWrite(cathode1, HIGH);
 }
 
-unsigned long blinkTempo(int tempo, unsigned long lastBlinkTime) {
-  unsigned long newBlinkTime = lastBlinkTime;
-  //Serial.printf("millis() - tempo/1024 * 1000 > lastBlinkTime: %d - %d > %d\n", millis(), tempo, lastBlinkTime);
-  float bpm = (60000.0 / tempo) * 4;
-  if (millis() * 1000 - bpm * 1000 > lastBlinkTime * 1000) {
-    Serial.printf("ledState %d\n", ledState);
-    digitalWrite(ledPin, ledState);
-    ledState = !ledState;
-    newBlinkTime = millis();
+void blinkTempo(int tempo) {
+  if(lastValue > 0) {
+    if (millis() - lastBlinkTime > (60000 / tempo)/2) {
+      digitalWrite(ledPin, ledState);
+      ledState = !ledState;
+      lastBlinkTime = millis();
+    } 
   }
-
-  return newBlinkTime;
 }
 
 
@@ -186,7 +182,7 @@ void loop() {
     mesh.update();
     //analogWrite(ledPin, lastValue / 4);
     Serial.printf("output value: %d\n", lastValue);
-    lastBlinkTime = blinkTempo(lastValue, lastBlinkTime);
+    blinkTempo(lastValue);
 
     // Tracking how long connection has been successful
     if(millis() - timeSinceMsgReceived > 60000) {
